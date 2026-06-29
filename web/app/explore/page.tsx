@@ -6,20 +6,30 @@ import { getRecentEntries, getAllTopics, shortAddr, tierBadgeClass } from "@/lib
 import { CONTRACT_CONFIGURED } from "@/lib/config";
 import type { Entry, Topic } from "@/lib/types";
 
+const PAGE_SIZE = 12;
+
 export default function ExplorePage() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [topics, setTopics]   = useState<Topic[]>([]);
   const [filter, setFilter]   = useState<string>("");
+  const [search, setSearch]   = useState("");
+  const [visible, setVisible] = useState(PAGE_SIZE);
 
   useEffect(() => {
     if (!CONTRACT_CONFIGURED) return;
-    getRecentEntries(50).then(setEntries).catch(() => {});
-    getAllTopics(50).then(setTopics).catch(() => {});
+    getRecentEntries(200).then(setEntries).catch(() => {});
+    getAllTopics(100).then(setTopics).catch(() => {});
   }, []);
 
-  const filtered = filter
-    ? entries.filter(e => e.topic_slug === filter)
-    : entries;
+  const q = search.toLowerCase().trim();
+  const filtered = entries
+    .filter(e => !filter || e.topic_slug === filter)
+    .filter(e => !q || e.title.toLowerCase().includes(q) || e.summary.toLowerCase().includes(q) || e.topic.toLowerCase().includes(q));
+
+  const page = filtered.slice(0, visible);
+  const hasMore = visible < filtered.length;
+
+  useEffect(() => { setVisible(PAGE_SIZE); }, [filter, search]);
 
   return (
     <div style={{ maxWidth: 1280, margin: "0 auto", padding: "var(--sp-xl) var(--sp-lg)" }}>
@@ -27,6 +37,18 @@ export default function ExplorePage() {
         KNOWLEDGE BASE
       </div>
       <h1 className="display-lg" style={{ marginBottom: "var(--sp-md)" }}>Explore</h1>
+
+      {/* Search */}
+      <div style={{ marginBottom: "var(--sp-md)" }}>
+        <input
+          type="text"
+          className="input"
+          placeholder="Search entries by title, topic, or keyword…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ maxWidth: 480 }}
+        />
+      </div>
 
       {/* Topic filters */}
       {topics.length > 0 && (
@@ -59,17 +81,24 @@ export default function ExplorePage() {
         </div>
       )}
 
+      {/* Results count */}
+      {q && (
+        <p className="caption" style={{ marginBottom: "var(--sp-sm)" }}>
+          {filtered.length} result{filtered.length !== 1 ? "s" : ""} for &ldquo;{search}&rdquo;
+        </p>
+      )}
+
       {/* Entry feed */}
       {filtered.length === 0 ? (
         <div style={{ textAlign: "center", padding: "var(--sp-xxl) 0" }}>
           <p className="display-md" style={{ color: "var(--color-muted)", marginBottom: "var(--sp-sm)" }}>
-            No entries yet.
+            {q ? "No entries match your search." : "No entries yet."}
           </p>
-          <Link href="/submit" className="btn-primary">BE THE FIRST</Link>
+          {!q && <Link href="/submit" className="btn-primary">BE THE FIRST</Link>}
         </div>
       ) : (
         <div>
-          {filtered.map(entry => (
+          {page.map(entry => (
             <Link key={entry.entry_id} href={`/entry/${entry.entry_id}`}
               style={{
                 display: "block",
@@ -89,7 +118,7 @@ export default function ExplorePage() {
               <p className="body-sm" style={{ color: "var(--color-body)", marginBottom: 6, maxWidth: 700 }}>
                 {entry.summary.slice(0, 200)}{entry.summary.length > 200 ? "…" : ""}
               </p>
-              <div className="caption" style={{ display: "flex", gap: "var(--sp-sm)" }}>
+              <div className="caption" style={{ display: "flex", gap: "var(--sp-sm)", flexWrap: "wrap" }}>
                 <span>{entry.topic}</span>
                 <span>·</span>
                 <span>{shortAddr(entry.owner)}</span>
@@ -100,6 +129,19 @@ export default function ExplorePage() {
               </div>
             </Link>
           ))}
+
+          {/* Load more */}
+          {hasMore && (
+            <div style={{ textAlign: "center", padding: "var(--sp-lg) 0" }}>
+              <button
+                onClick={() => setVisible(v => v + PAGE_SIZE)}
+                className="btn-outline"
+                style={{ padding: "8px 32px" }}
+              >
+                LOAD MORE ({filtered.length - visible} remaining)
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

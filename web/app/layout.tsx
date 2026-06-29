@@ -66,8 +66,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <AgoraWordmark />
               </Link>
 
-              <nav style={{ display: "flex", alignItems: "center", gap: "var(--sp-md)", marginLeft: "var(--sp-lg)" }}
-                className="hidden sm:flex">
+              <nav style={{ alignItems: "center", gap: "var(--sp-md)", marginLeft: "var(--sp-lg)" }}
+                className="desktop-only">
                 {[
                   { href: "/explore",     label: "Explore"     },
                   { href: "/submit",      label: "Submit"      },

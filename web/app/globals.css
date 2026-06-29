@@ -346,3 +346,23 @@ textarea.input {
   background: rgba(218, 41, 28, 0.3);
   color: var(--color-ink);
 }
+
+/* ── Responsive helpers ── */
+
+.desktop-only {
+  display: none !important;
+}
+@media (min-width: 640px) {
+  .desktop-only {
+    display: flex !important;
+  }
+}
+
+.mobile-only {
+  display: flex !important;
+}
+@media (min-width: 640px) {
+  .mobile-only {
+    display: none !important;
+  }
+}
