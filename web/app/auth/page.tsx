@@ -15,7 +15,7 @@ export default function AuthPage() {
   const [error, setError]       = useState("");
 
   useEffect(() => {
-    if (address) router.replace("/submit");
+    if (address) router.replace("/");
   }, [address, router]);
 
   if (address) return null;
@@ -26,7 +26,7 @@ export default function AuthPage() {
     try {
       if (mode === "signup") await signup(email, password);
       else await login(email, password);
-      router.push("/submit");
+      router.push("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Authentication failed");
     }
@@ -36,7 +36,7 @@ export default function AuthPage() {
     setError("");
     try {
       await connect(rdns);
-      router.push("/submit");
+      router.push("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Wallet connection failed");
     }
