@@ -5,6 +5,7 @@ import "./globals.css";
 import { WalletProvider } from "@/lib/wallet";
 import { AgoraWordmark } from "@/components/Logo";
 import NavClient from "@/components/NavClient";
+import { LiveBackdrop } from "@/components/LiveBackdrop";
 
 const inter = Inter({
   weight: ["400", "500", "600", "700"],
@@ -42,6 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${inter.variable} ${mono.variable}`}>
       <body className="min-h-screen flex flex-col">
+        <LiveBackdrop />
         <WalletProvider>
           {/* ── Top Nav: 64px, sharp, uppercase ── */}
           <header style={{
