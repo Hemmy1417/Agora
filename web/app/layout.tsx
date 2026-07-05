@@ -102,7 +102,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               justifyContent: "space-between",
             }}>
               <span className="body-sm">Agora — Crowd-sourced Knowledge Database</span>
-              <span className="body-sm">Powered by GenLayer</span>
+              <span className="body-sm">Powered by GenLayer · <a href={`https://explorer-studio.genlayer.com/address/${process.env.NEXT_PUBLIC_CONTRACT_ADDRESS ?? ""}`} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline" }}>Verify on explorer ↗</a></span>
             </div>
           </footer>
         </WalletProvider>
