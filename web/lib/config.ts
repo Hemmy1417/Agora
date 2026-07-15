@@ -4,7 +4,7 @@ export const CHAIN     = studionet;
 export const CHAIN_HEX = `0x${studionet.id.toString(16)}` as `0x${string}`;
 export const CHAIN_RPC = studionet.rpcUrls.default.http[0];
 
-export const CONTRACT_ADDRESS  = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "0xDeBa41B6873088b9c82e85c3c272371D54F69347") as `0x${string}`;
+export const CONTRACT_ADDRESS  = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "0x119D7cCAC2A56b8d6302f4452872C56B1540454C") as `0x${string}`;
 export const CONTRACT_CONFIGURED = /^0x[a-fA-F0-9]{40}$/.test(CONTRACT_ADDRESS);
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || "";

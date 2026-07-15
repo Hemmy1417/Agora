@@ -174,6 +174,13 @@ Respond ONLY with this JSON (no markdown):
     def _evaluate_challenge(self, entry, reason):
         def evaluate():
             page_text = gl.nondet.web.render(entry["source_url"], mode="text")
+            # Fail-safe (Gazette lesson): a source that is unreachable or
+            # effectively empty is an infrastructure failure, NEVER grounds to
+            # uphold a challenge. Upholding strips the author's reputation and
+            # rewards the challenger, so a temporarily-down source would let a
+            # griefer farm standing off good entries. Surface reachability as an
+            # authoritative signal so the ruling defaults to "entry stands".
+            reachable = bool(page_text and len(page_text.strip()) >= 50)
             prompt = f"""You are a challenge arbitrator for the AGORA on-chain knowledge database.
 
 An existing entry has been challenged. Re-evaluate it considering the challenger's objection.
@@ -188,11 +195,20 @@ ORIGINAL ENTRY:
 
 CHALLENGE REASON: {reason}
 
+SOURCE REACHABLE: {reachable}
 SOURCE CONTENT (first 3000 chars): {page_text[:3000]}
 
 Re-evaluate with fresh eyes. Is the challenge valid?
+
+CRITICAL RULE: If SOURCE REACHABLE is False (the source could not be fetched or
+came back empty), you CANNOT confirm the challenge. An unavailable source is an
+infrastructure problem, not proof the entry is wrong — return challenge_valid
+false and leave the score unchanged. Only uphold a challenge when the fetched
+source content itself positively contradicts or undermines the entry.
+
 Respond ONLY with this JSON (no markdown):
 {{
+  "source_reachable": {str(reachable).lower()},
   "challenge_valid": <true|false>,
   "new_score": <0-100>,
   "new_verdict": "<VERIFIED|ACCEPTED|REJECTED>",
@@ -205,10 +221,15 @@ Respond ONLY with this JSON (no markdown):
 
         raw = gl.eq_principle.prompt_comparative(
             evaluate,
-            "Responses must agree on challenge_valid (true/false) and new_verdict",
+            "Responses must agree on source_reachable (true/false), challenge_valid (true/false) and new_verdict",
         )
         output = self._parse_json(raw)
         output["challenge_valid"] = bool(output.get("challenge_valid", False))
+        # Deterministic fail-safe backstop: never uphold a challenge when the
+        # source was not reachable, no matter what the model returned. Missing
+        # field defaults to unreachable, so the entry always stands on doubt.
+        if not bool(output.get("source_reachable", False)):
+            output["challenge_valid"] = False
         output["new_score"] = max(0, min(100, int(output.get("new_score", 0))))
         nv = output.get("new_verdict", "ACCEPTED").upper()
         output["new_verdict"] = nv if nv in ("VERIFIED", "ACCEPTED", "REJECTED") else "ACCEPTED"
