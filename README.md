@@ -20,6 +20,7 @@ Submit research. AI validators verify it against the source. Earn reputation. Ev
 - **Quality tiers** — Verified (80–100, 2x reward), Accepted (50–79, 1x reward), Rejected (0–49, no reward)
 - **Bounties** — Post research questions with a minimum quality threshold. Anyone can claim by submitting a verified entry
 - **Challenges** — Dispute an existing entry. AI re-evaluates with your objection. Valid challenges earn reputation
+- **Bonded appeals** — If your entry is downgraded by a challenge, stake 20 reputation for a fresh, independent re-ruling. Win → entry, reputation, and bond restored and the challenger's reward reversed. Lose → the challenge stands and the bond goes to the challenger
 - **Leaderboard** — Contributor rankings by reputation, entries, verifications, and challenges won
 - **On-chain transparency** — Every entry, score, and reputation change is recorded on GenLayer. The contract is public and auditable
 
@@ -36,9 +37,9 @@ Submit research. AI validators verify it against the source. Earn reputation. Ev
 
 ## Contract
 
-- **Address:** `0x119D7cCAC2A56b8d6302f4452872C56B1540454C`
+- **Address:** `0x88865683016C574Cb6fa48940E083A483c3c3A88`
 - **Network:** GenLayer Studionet
-- **View in Studio:** [GenLayer Studio](https://studio.genlayer.com/?import-contract=0x119D7cCAC2A56b8d6302f4452872C56B1540454C)
+- **View in Studio:** [GenLayer Studio](https://studio.genlayer.com/?import-contract=0x88865683016C574Cb6fa48940E083A483c3c3A88)
 
 ## Validation methodology
 
@@ -57,6 +58,23 @@ uphold one. The arbitrator computes source reachability deterministically, agree
 in the consensus principle, and a contract-side backstop forces the challenge invalid
 whenever the source could not be fetched. A temporarily-down source can never strip a
 good entry or let a griefer farm reputation. **On doubt, the entry stands.**
+
+### Appeals
+
+An upheld challenge is the one adverse ruling in Agora with teeth — it downgrades the
+entry and moves reputation — so the author gets recourse. `appeal_challenge` lets the
+author stake a **20-reputation bond** for a fresh, independent second-panel ruling on
+the same objection (re-fetch + independent judgement, and it inherits the same
+unreachable-source fail-safe, so an appeal on a dead source always restores the entry):
+
+- **Overturned** → the entry's score, tier, verdict, and `active` status are restored, the
+  reputation the challenge deducted is returned, the bond is refunded, and the challenger's
+  reward is reversed.
+- **Denied** → the challenge stands and the bond is forfeited to the challenger.
+
+The bond is native reputation (Agora holds no GEN — reputation *is* the currency), which
+keeps frivolous appeals costly while making a justified one whole. One appeal per upheld
+challenge.
 
 ## Project structure
 

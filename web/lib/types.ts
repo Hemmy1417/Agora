@@ -19,6 +19,9 @@ export interface Entry {
   reward:          number;
   challenges:      number;
   status:          "active" | "disputed";
+  challenge_upheld?: boolean;
+  appeal_used?:      boolean;
+  appeal_result?:    string;
   bounty_id?:      string;
 }
 

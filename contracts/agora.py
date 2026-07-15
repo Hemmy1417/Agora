@@ -8,6 +8,7 @@ from genlayer import *
 STARTING_REPUTATION = 0
 SUBMIT_REWARD       = 10
 CHALLENGE_REWARD    = 15
+APPEAL_BOND         = 20
 BOUNTY_CLAIM_BONUS  = 20
 
 QUALITY_TIERS = {
@@ -171,8 +172,13 @@ Respond ONLY with this JSON (no markdown):
 
     # ── AI: re-evaluate a challenged entry ──────────────────────────────────
 
-    def _evaluate_challenge(self, entry, reason):
+    def _evaluate_challenge(self, entry, reason, appeal=False):
         def evaluate():
+            appeal_note = (
+                "\nNOTE: this is an APPEAL of the challenge ruling, filed by the entry's "
+                "author. Re-examine the source and the objection especially rigorously and "
+                "rule independently — do not defer to the earlier decision.\n" if appeal else ""
+            )
             page_text = gl.nondet.web.render(entry["source_url"], mode="text")
             # Fail-safe (Gazette lesson): a source that is unreachable or
             # effectively empty is an infrastructure failure, NEVER grounds to
@@ -184,7 +190,7 @@ Respond ONLY with this JSON (no markdown):
             prompt = f"""You are a challenge arbitrator for the AGORA on-chain knowledge database.
 
 An existing entry has been challenged. Re-evaluate it considering the challenger's objection.
-
+{appeal_note}
 ORIGINAL ENTRY:
   Topic: {entry['topic']}
   Title: {entry['title']}
@@ -275,6 +281,9 @@ Respond ONLY with this JSON (no markdown):
             "reward":           reward,
             "challenges":       0,
             "status":           "active",
+            "challenge_upheld": False,
+            "appeal_used":      False,
+            "appeal_result":    "",
         }
 
         self.entries[entry_id] = json.dumps(entry)
@@ -324,7 +333,24 @@ Respond ONLY with this JSON (no markdown):
         entry["challenges"] += 1
 
         if result["challenge_valid"]:
-            old_tier = entry["tier"]
+            old_tier    = entry["tier"]
+            old_score   = entry["overall_score"]
+            old_verdict = entry["verdict"]
+            old_mult    = QUALITY_TIERS[old_tier]["reward_mult"]
+            lost        = int(SUBMIT_REWARD * old_mult)
+
+            # Snapshot the pre-challenge state so the author can file one bonded
+            # appeal against this ruling (see appeal_challenge).
+            entry["pre_score"]        = old_score
+            entry["pre_tier"]         = old_tier
+            entry["pre_verdict"]      = old_verdict
+            entry["challenger"]       = sender
+            entry["challenge_reason"] = reason
+            entry["rep_lost"]         = lost
+            entry["challenge_upheld"] = True
+            entry["appeal_used"]      = False
+            entry["appeal_result"]    = ""
+
             entry["overall_score"] = result["new_score"]
             entry["tier"]          = _tier_for_score(result["new_score"])
             entry["verdict"]       = result["new_verdict"]
@@ -341,8 +367,6 @@ Respond ONLY with this JSON (no markdown):
             self._save_profile(sender, challenger_profile)
 
             author_profile = self._get_profile(entry["owner"])
-            old_mult = QUALITY_TIERS[old_tier]["reward_mult"]
-            lost     = int(SUBMIT_REWARD * old_mult)
             author_profile["reputation"] = max(0, author_profile["reputation"] - lost)
             if old_tier == "verified":
                 author_profile["verified_count"] = max(0, author_profile["verified_count"] - 1)
@@ -358,6 +382,98 @@ Respond ONLY with this JSON (no markdown):
             self._save_profile(entry["owner"], author_profile)
         else:
             self.entries[entry_id] = json.dumps(entry)
+
+    # ── public write: appeal an upheld challenge ────────────────────────────
+
+    @gl.public.write
+    def appeal_challenge(self, entry_id: str) -> None:
+        """The author stakes an APPEAL_BOND of reputation to trigger a fresh,
+        independent second-panel ruling on the challenge that downgraded their entry.
+
+        Win  → entry + reputation restored, the challenger's reward reversed, bond refunded.
+        Lose → the challenge stands and the bond is forfeited to the challenger.
+
+        One appeal per upheld challenge. The re-ruling reuses the same fetched-source
+        fail-safe: an unreachable source can never keep a challenge standing, so an
+        appeal on a dead source always restores the entry.
+        """
+        sender = str(gl.message.sender_address)
+        self._track_owner(sender)
+
+        if entry_id not in self.entries:
+            return
+        entry = json.loads(self.entries[entry_id])
+        if entry.get("owner") != sender:
+            return
+        if not entry.get("challenge_upheld", False):
+            return
+        if entry.get("appeal_used", False):
+            return
+
+        # Reputation bond — skin in the game. Must be affordable; escrow it now.
+        author = self._get_profile(sender)
+        if author["reputation"] < APPEAL_BOND:
+            return
+        author["reputation"] -= APPEAL_BOND
+        self._save_profile(sender, author)
+
+        entry["appeal_used"] = True
+
+        # Fresh, independent ruling on the SAME objection, with the fetched-source
+        # fail-safe baked in. challenge_valid False => the challenge cannot stand
+        # => the appeal SUCCEEDS.
+        result = self._evaluate_challenge(entry, entry.get("challenge_reason", ""), appeal=True)
+        challenge_stands = bool(result["challenge_valid"])
+
+        downgraded_tier = entry["tier"]
+        pre_tier        = entry.get("pre_tier", downgraded_tier)
+        rep_lost        = int(entry.get("rep_lost", 0))
+        challenger      = entry.get("challenger", "")
+
+        author = self._get_profile(sender)
+
+        if not challenge_stands:
+            # APPEAL SUCCEEDS — restore the entry and unwind the challenge.
+            entry["overall_score"]    = int(entry.get("pre_score", entry["overall_score"]))
+            entry["tier"]             = pre_tier
+            entry["verdict"]          = entry.get("pre_verdict", entry["verdict"])
+            entry["status"]           = "active"
+            entry["challenge_upheld"] = False
+            entry["appeal_result"]    = "overturned"
+            entry["feedback"]         = result.get("arbitration", entry["feedback"])
+
+            # Refund the bond and restore the reputation the challenge deducted.
+            author["reputation"] += rep_lost + APPEAL_BOND
+            if downgraded_tier == "verified":
+                author["verified_count"] = max(0, author["verified_count"] - 1)
+            elif downgraded_tier == "accepted":
+                author["accepted_count"] = max(0, author["accepted_count"] - 1)
+            else:
+                author["rejected_count"] = max(0, author["rejected_count"] - 1)
+            if pre_tier == "verified":
+                author["verified_count"] += 1
+            elif pre_tier == "accepted":
+                author["accepted_count"] += 1
+            else:
+                author["rejected_count"] += 1
+            self._save_profile(sender, author)
+
+            # Reverse the challenger's reward.
+            if challenger and challenger != sender:
+                cp = self._get_profile(challenger)
+                cp["reputation"]     = max(0, cp["reputation"] - CHALLENGE_REWARD)
+                cp["challenges_won"] = max(0, cp["challenges_won"] - 1)
+                self._save_profile(challenger, cp)
+        else:
+            # APPEAL DENIED — the challenge stands; the bond goes to the challenger.
+            entry["challenge_upheld"] = False
+            entry["appeal_result"]    = "denied"
+            if challenger and challenger != sender:
+                cp = self._get_profile(challenger)
+                cp["reputation"] += APPEAL_BOND
+                self._save_profile(challenger, cp)
+
+        self.entries[entry_id] = json.dumps(entry)
 
     # ── public write: post bounty ───────────────────────────────────────────
 

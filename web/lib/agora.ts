@@ -185,6 +185,15 @@ export async function challengeEntry(
   return writeAndWait(client, "challenge_entry", [entryId, reason]);
 }
 
+// Author stakes an APPEAL_BOND (20 reputation) to trigger a fresh, independent
+// second-panel ruling on an upheld challenge. Win → entry + reputation restored,
+// challenger's reward reversed, bond refunded. Lose → challenge stands, bond forfeited.
+export async function appealChallenge(
+  client: Client, entryId: string
+): Promise<string> {
+  return writeAndWait(client, "appeal_challenge", [entryId]);
+}
+
 export async function postBounty(
   client: Client, topic: string, question: string, minQuality: number
 ): Promise<string> {

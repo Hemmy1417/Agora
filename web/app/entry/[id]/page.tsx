@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { getEntry, challengeEntry, shortAddr, tierBadgeClass, tierColor } from "@/lib/agora";
+import { getEntry, challengeEntry, appealChallenge, shortAddr, tierBadgeClass, tierColor } from "@/lib/agora";
 import { useWallet } from "@/lib/wallet";
 import type { Entry } from "@/lib/types";
 
@@ -18,6 +18,8 @@ export default function EntryDetailPage() {
   const [reason, setReason]         = useState("");
   const [challenging, setChallenging] = useState(false);
   const [challengeResult, setChallengeResult] = useState("");
+  const [appealing, setAppealing] = useState(false);
+  const [appealResult, setAppealResult] = useState("");
 
   useEffect(() => {
     if (!id) return;
@@ -41,6 +43,27 @@ export default function EntryDetailPage() {
     }
   }
 
+  async function handleAppeal() {
+    if (!client || !entry) return;
+    setAppealing(true); setAppealResult("");
+    try {
+      await appealChallenge(client, entry.entry_id);
+      const updated = await getEntry(entry.entry_id);
+      if (updated) setEntry(updated);
+      setAppealResult(
+        updated?.appeal_result === "overturned"
+          ? "Appeal upheld — the challenge was overturned and your entry restored, along with your reputation and bond."
+          : updated?.appeal_result === "denied"
+          ? "Appeal denied — the panel found the challenge valid on fresh review. The challenge stands and your bond was forfeited."
+          : "Appeal processed."
+      );
+    } catch (err) {
+      setAppealResult(err instanceof Error ? err.message : "Appeal failed");
+    } finally {
+      setAppealing(false);
+    }
+  }
+
   if (loading) {
     return (
       <div style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -61,6 +84,7 @@ export default function EntryDetailPage() {
   }
 
   const canChallenge = address && address.toLowerCase() !== entry.owner.toLowerCase() && entry.status === "active";
+  const canAppeal = !!address && address.toLowerCase() === entry.owner.toLowerCase() && !!entry.challenge_upheld && !entry.appeal_used;
 
   return (
     <div style={{ maxWidth: 820, margin: "0 auto", padding: "var(--sp-xl) var(--sp-lg)" }}>
@@ -177,6 +201,25 @@ export default function EntryDetailPage() {
               CHALLENGE THIS ENTRY
             </button>
           )}
+
+          {/* Appeal button — author only, when a challenge was upheld and not yet appealed */}
+          {canAppeal && (
+            <>
+              <button
+                onClick={handleAppeal}
+                disabled={appealing}
+                className="btn-outline"
+                style={{ width: "100%", marginTop: "var(--sp-xs)" }}
+              >
+                {appealing ? "AI IS RE-EVALUATING…" : "APPEAL THIS RULING · STAKE 20 REP"}
+              </button>
+              <p className="body-sm" style={{ marginTop: "var(--sp-xs)", opacity: 0.75 }}>
+                A challenge was upheld against this entry. Stake 20 reputation for a fresh, independent
+                re-ruling. Win → entry + reputation restored and your bond refunded. Lose → the challenge
+                stands and the bond goes to the challenger.
+              </p>
+            </>
+          )}
         </div>
       </div>
 
@@ -208,6 +251,17 @@ export default function EntryDetailPage() {
           fontSize: 13,
         }}>
           {challengeResult}
+        </div>
+      )}
+
+      {appealResult && (
+        <div style={{
+          marginTop: "var(--sp-sm)",
+          padding: "var(--sp-xs)",
+          background: "var(--color-surface-card)",
+          fontSize: 13,
+        }}>
+          {appealResult}
         </div>
       )}
     </div>
