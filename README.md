@@ -36,9 +36,9 @@ Submit research. AI validators verify it against the source. Earn reputation. Ev
 
 ## Contract
 
-- **Address:** `0xDeBa41B6873088b9c82e85c3c272371D54F69347`
+- **Address:** `0x119D7cCAC2A56b8d6302f4452872C56B1540454C`
 - **Network:** GenLayer Studionet
-- **View in Studio:** [GenLayer Studio](https://studio.genlayer.com/?import-contract=0xDeBa41B6873088b9c82e85c3c272371D54F69347)
+- **View in Studio:** [GenLayer Studio](https://studio.genlayer.com/?import-contract=0x119D7cCAC2A56b8d6302f4452872C56B1540454C)
 
 ## Validation methodology
 
@@ -48,6 +48,15 @@ Validators use `gl.eq_principle.prompt_comparative` for consensus:
 2. **AI evaluation** — Each validator's AI scores the summary across accuracy, relevance, quality, and novelty (0–100 each)
 3. **Consensus** — Validators must agree on the verdict and overall score within 15 points
 4. **On-chain record** — The accepted result is stored permanently with full auditability
+
+### Challenge fail-safe
+
+Upholding a challenge downgrades an entry, rewards the challenger, and strips the
+author's reputation — so an unreachable source must never be mistaken for grounds to
+uphold one. The arbitrator computes source reachability deterministically, agrees it
+in the consensus principle, and a contract-side backstop forces the challenge invalid
+whenever the source could not be fetched. A temporarily-down source can never strip a
+good entry or let a griefer farm reputation. **On doubt, the entry stands.**
 
 ## Project structure
 
@@ -95,3 +104,11 @@ npm install && npm run dev
 - `FIREBASE_PRIVATE_KEY`
 - `WALLET_ENCRYPTION_KEY`
 - `PORT`
+
+## Signed writes
+
+Contract writes are signed by the **connected wallet's own EIP-1193 provider** — the
+wallet context builds the genlayer-js client with `createClient({ chain, account,
+provider })` and every write routes through it. A repository-level test
+(`web/tests/signed-write.test.ts`) proves the write path routes `eth_sendTransaction`
+through that provider with the correct `from`.
